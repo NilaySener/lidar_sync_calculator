@@ -12,9 +12,9 @@
 
 std::mutex mutex;
 
-std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp, int sock)
+std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp_ms, std::vector<uint16_t> &currentTimestamp_us, int sock)
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::lock_guard<std::mutex> lock(mutex);
     size_t i = 0;
 
@@ -43,7 +43,7 @@ std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp, int sock
         // Get mikrosecond value from the buffer
         uint8_t us_1 = buffer_1[28];
         uint8_t us_2 = buffer_1[29];
-        uint16_t mikrosecond = (us_1 << 8) | us_2;
+        uint16_t microsecond = (us_1 << 8) | us_2;
         // std::cout << std::dec << mikrosecond << "us" << std::endl;
 
         // int headerOffset = 20;
@@ -53,18 +53,20 @@ std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp, int sock
         //     std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<float>(buffer_1[i]) << " ";
         // }
 
-        currentTimestamp.push_back(mikrosecond);
+        currentTimestamp_ms.push_back(milisecond);
+        currentTimestamp_us.push_back(microsecond);
+
         // // Get current timestamp from system
         // currentTimestamp.push_back(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         i++;
     }
 
-    return currentTimestamp;
+    return currentTimestamp_ms;
 }
 
-std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp, int sock)
+std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp_ms, std::vector<uint16_t> &currentTimestamp_us, int sock)
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::lock_guard<std::mutex> lock(mutex);
     size_t i = 0;
 
@@ -96,15 +98,16 @@ std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp, int sock
 
         uint8_t us_1 = buffer_2[28];
         uint8_t us_2 = buffer_2[29];
-        uint16_t mikrosecond = (us_1 << 8) | us_2;
+        uint16_t microsecond = (us_1 << 8) | us_2;
         // std::cout << std::dec << mikrosecond << "us" << std::endl;
 
-        currentTimestamp.push_back(mikrosecond);
+        currentTimestamp_ms.push_back(milisecond);
+        currentTimestamp_us.push_back(microsecond);
         // currentTimestamp.push_back(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         i++;
     }
 
-    return currentTimestamp;
+    return currentTimestamp_ms;
 }
 
 int main()
@@ -144,22 +147,26 @@ int main()
         close(sock1);
         return 1;
     }
-    std::vector<uint16_t> currentTimestamp_1;
-    std::vector<uint16_t> currentTimestamp_2;
+    std::vector<uint16_t> Timestamp_ms_1;
+    std::vector<uint16_t> Timestamp_us_1;
 
-    std::thread threadX(receive1, std::ref(currentTimestamp_1), sock1);
-    std::thread threadY(receive2, std::ref(currentTimestamp_2), sock2);
+    std::vector<uint16_t> Timestamp_ms_2;
+    std::vector<uint16_t> Timestamp_us_2;
+
+    std::thread threadX(receive1, std::ref(Timestamp_ms_1), std::ref(Timestamp_us_1), sock1);
+    std::thread threadY(receive2, std::ref(Timestamp_ms_2), std::ref(Timestamp_us_2), sock2);
 
     threadX.join();
     threadY.join();
 
     // Calculate time differences
-    for (size_t i = 0; i < 100; i++)
+    for (size_t i = 0; i < 1000; i++)
     {
         // std::cout << "DEBUG1" << std::endl;
 
-        auto timeDifference_ms = std::abs(currentTimestamp_1[i] - currentTimestamp_2[i]);
-        std::cout << "Time difference microsecond: " << timeDifference_ms << std::endl;
+        auto timeDifference_ms = std::abs(Timestamp_ms_1[i] - Timestamp_ms_2[i]);
+        auto timeDifference_us = std::abs(Timestamp_us_1[i] - Timestamp_us_2[i]);
+        std::cout << "Time difference:  " << timeDifference_ms << " ms  " << timeDifference_us << "us" << std::endl;
     }
 
     return 0;
