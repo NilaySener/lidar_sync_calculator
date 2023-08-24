@@ -11,14 +11,19 @@
 #include <iomanip>
 
 std::mutex mutex;
+uint16_t currentTimestamp_ms_1 = 0;
+uint16_t currentTimestamp_us_1 = 0;
 
-std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp_ms, std::vector<uint16_t> &currentTimestamp_us, int sock)
+uint16_t currentTimestamp_ms_2 = 0;
+uint16_t currentTimestamp_us_2 = 0;
+
+void receive1(int sock)
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    std::lock_guard<std::mutex> lock(mutex);
-    size_t i = 0;
 
-    while (i < 1000)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // std::lock_guard<std::mutex> lock(mutex);
+    // size_t i = 0;
+    while (true)
     {
 
         char buffer_1[1248];
@@ -31,7 +36,6 @@ std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp_ms, std::
             perror("Receive failed");
             close(sock);
         }
-        // std::cout << "\nTime data LIDAR 1: ";
 
         // std::cout << "\nTime data: ";
         // Get milisecond value from the buffer
@@ -52,27 +56,20 @@ std::vector<uint16_t> receive1(std::vector<uint16_t> &currentTimestamp_ms, std::
         // {
         //     std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<float>(buffer_1[i]) << " ";
         // }
-
-        currentTimestamp_ms.push_back(milisecond);
-        currentTimestamp_us.push_back(microsecond);
-
-        // // Get current timestamp from system
-        // currentTimestamp.push_back(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        i++;
+        currentTimestamp_ms_1 = milisecond;
+        currentTimestamp_us_1 = microsecond;
     }
-
-    return currentTimestamp_ms;
 }
 
-std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp_ms, std::vector<uint16_t> &currentTimestamp_us, int sock)
+
+void receive2(int sock)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::lock_guard<std::mutex> lock(mutex);
     size_t i = 0;
 
-    while (i < 1000)
+    while (true)
     {
-
         char buffer_2[1248];
         sockaddr_in clientAddr_2;
         socklen_t clientLen_2 = sizeof(clientAddr_2);
@@ -84,7 +81,6 @@ std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp_ms, std::
             close(sock);
         }
 
-        // std::cout << "\nTime data LIDAR 2: ";
         // int headerOffset = 20;
         // int headerLength = 10;
         // for (int i = headerOffset; i < headerOffset + headerLength && i < bytesReceived_2; ++i)
@@ -101,13 +97,10 @@ std::vector<uint16_t> receive2(std::vector<uint16_t> &currentTimestamp_ms, std::
         uint16_t microsecond = (us_1 << 8) | us_2;
         // std::cout << std::dec << mikrosecond << "us" << std::endl;
 
-        currentTimestamp_ms.push_back(milisecond);
-        currentTimestamp_us.push_back(microsecond);
-        // currentTimestamp.push_back(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        i++;
+        currentTimestamp_ms_2 = milisecond;
+        currentTimestamp_us_2 = microsecond;
     }
-
-    return currentTimestamp_ms;
+    // currentTimestamp.push_back(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 }
 
 int main()
@@ -147,27 +140,28 @@ int main()
         close(sock1);
         return 1;
     }
-    std::vector<uint16_t> Timestamp_ms_1;
-    std::vector<uint16_t> Timestamp_us_1;
+    std::thread threadX(receive1, sock1);
+    std::thread threadY(receive2, sock2);
 
-    std::vector<uint16_t> Timestamp_ms_2;
-    std::vector<uint16_t> Timestamp_us_2;
-
-    std::thread threadX(receive1, std::ref(Timestamp_ms_1), std::ref(Timestamp_us_1), sock1);
-    std::thread threadY(receive2, std::ref(Timestamp_ms_2), std::ref(Timestamp_us_2), sock2);
-
-    threadX.join();
-    threadY.join();
-
-    // Calculate time differences
-    for (size_t i = 0; i < 1000; i++)
+    threadX.detach(); // Detach threads to let them run in the background
+    threadY.detach();
+    while (true)
     {
-        // std::cout << "DEBUG1" << std::endl;
-
-        auto timeDifference_ms = std::abs(Timestamp_ms_1[i] - Timestamp_ms_2[i]);
-        auto timeDifference_us = std::abs(Timestamp_us_1[i] - Timestamp_us_2[i]);
+        std::this_thread::sleep_for(std::chrono::milliseconds(60));
+        // Calcute the difference
+        auto timeDifference_ms = std::abs(currentTimestamp_ms_1 - currentTimestamp_ms_2);
+        auto timeDifference_us = std::abs(currentTimestamp_us_1 - currentTimestamp_us_2);
         std::cout << "Time difference:  " << timeDifference_ms << " ms  " << timeDifference_us << "us" << std::endl;
     }
+    // // Calculate time differences"
+    // for (size_t i = 0; i < 1000; i++)
+    // {
+    //     // std::cout << "DEBUG1" << std::endl;
+
+    //     auto timeDifference_ms = std::abs(Timestamp_ms_1[i] - Timestamp_ms_2[i]);
+    //     auto timeDifference_us = std::abs(Timestamp_us_1[i] - Timestamp_us_2[i]);
+    //     std::cout << "Time difference:  " << timeDifference_ms << " ms  " << timeDifference_us << "us" << std::endl;
+    // }
 
     return 0;
 }
